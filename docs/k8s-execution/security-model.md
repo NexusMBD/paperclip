@@ -294,3 +294,26 @@ The CI release pipeline runs `kube-audit-kit` and `polaris` against a freshly pr
 - [Cluster RBAC](./cluster-rbac.md) — the driver ClusterRole and binding templates
 - [Multi-tenant onboarding](./multi-tenant-onboarding.md) — playbook for provisioning multiple companies and handling edge cases
 - [Design spec §2](../superpowers/specs/2026-05-08-paperclip-cloud-adapter-design.md#2-tenancy-isolation--cluster-connection)
+
+## Git credentials in V1
+
+V1 issues git credentials by resolving a per-company secret stored in
+`company_secrets` and exposing it to the workspace-init container as a
+`{username, password}` pair via the `/api/workspace/git-credentials` endpoint.
+
+### Trust model
+
+- The secret is owned by the company. Operators set it via `paperclip cluster set-git-credentials`.
+- The secret is decrypted only on the server — the agent's pod never sees the wrapping ciphertext, only the resolved `{username, password}` JSON.
+- The `/api/workspace/git-credentials` route requires a valid run-JWT (minted from a one-shot bootstrap token); the agent cannot exchange a JWT for credentials belonging to a different company.
+- The route logs `repoUrl` for audit but does not gate on it. Any clone path the workspace-init opens uses the same credential pair.
+
+### Limitations
+
+- **One credential per company.** Tenants with multiple repos pointing at different orgs/hosts must use a single PAT broad enough to cover all of them, OR pick the most-restrictive shared PAT.
+- **TTL is informational.** The exposed `expiresAt` is `now + 1h`, but the underlying `companySecret` is long-lived. The contract is stable so V2 (GitHub App installation tokens) can swap in a real TTL transparently.
+- **No per-repo scoping.** A compromised PAT exposes every repo it has access to. Operators who need scoping must wait for V2 or use deploy keys with a separate `companySecret` per repo.
+
+### V2 plan
+
+V2 replaces the static PAT with a GitHub App installation token minted on-demand for the specific repo the agent is about to clone. The `/api/workspace/git-credentials` contract stays unchanged.
