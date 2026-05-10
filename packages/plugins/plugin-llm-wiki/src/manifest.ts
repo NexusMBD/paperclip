@@ -88,7 +88,6 @@ const manifest: PaperclipPluginManifestV1 = {
   categories: ["automation", "ui"],
   capabilities: [
     "events.subscribe",
-    "jobs.schedule",
     "api.routes.register",
     "database.namespace.migrate",
     "database.namespace.read",
@@ -322,14 +321,6 @@ const manifest: PaperclipPluginManifestV1 = {
         originId: "routine:index-refresh",
         billingCode: "plugin-llm-wiki:maintenance"
       }
-    }
-  ],
-  jobs: [
-    {
-      jobKey: "folder-health-check",
-      displayName: "Wiki folder health check",
-      description: "Records lightweight health metadata for configured wiki roots.",
-      schedule: "0 * * * *"
     }
   ],
   tools: [

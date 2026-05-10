@@ -1511,7 +1511,7 @@ Duplicate headings receive stable suffixes.
     });
   });
 
-  it("registers worker data, actions, jobs, and tools", async () => {
+  it("registers worker data, actions, and tools", async () => {
     const harness = createTestHarness({ manifest });
     await plugin.definition.setup(harness.ctx);
 
@@ -1522,7 +1522,6 @@ Duplicate headings receive stable suffixes.
     expect(overview.operationCount).toBe(0);
     expect(overview.eventIngestion.enabled).toBe(false);
 
-    await harness.runJob("folder-health-check");
     const pages = await harness.executeTool<{ content?: string }>("wiki_list_pages", {
       companyId: COMPANY_ID,
       wikiId: "default",

@@ -203,10 +203,6 @@ const plugin = definePlugin({
       });
     }
 
-    ctx.jobs.register("folder-health-check", async (job) => {
-      ctx.logger.info("LLM Wiki folder health job invoked", { runId: job.runId, trigger: job.trigger });
-    });
-
     ctx.data.register("overview", async (params) => {
       const companyId = readCompanyIdFromParams(params);
       return getOverview(ctx, companyId);
