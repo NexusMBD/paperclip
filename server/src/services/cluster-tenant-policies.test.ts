@@ -136,8 +136,8 @@ describe("clusterTenantPoliciesService", () => {
     const svc = clusterTenantPoliciesService(db);
     // First create a company secret to FK against.
     const secretRows = await db.execute(sql`
-      INSERT INTO company_secrets (company_id, name)
-      VALUES (${companyId}, 'github-pat')
+      INSERT INTO company_secrets (company_id, key, name)
+      VALUES (${companyId}, 'github-pat', 'github-pat')
       RETURNING id
     `);
     const secretId = (secretRows[0] as { id: string }).id;
