@@ -50,7 +50,7 @@ import type {
 } from "./routes/instance-database-backups.js";
 import { createExecutionTargetRegistry } from "./adapters/execution-target-registry.js";
 import { registerKubernetesExecutionTargetDriver } from "./adapters/execution-targets/kubernetes.js";
-import { buildAdapterManagedWorkspaceRequestJson } from "./adapters/execution-targets/workspace-strategy-json.js";
+import { buildKubernetesRunContext } from "./adapters/execution-targets/kubernetes-run-context.js";
 import { clusterConnectionsService } from "./services/cluster-connections.js";
 import { getSecretProvider } from "./secrets/provider-registry.js";
 import { bootstrapTokensService } from "./services/bootstrap-tokens.js";
@@ -654,21 +654,11 @@ export async function startServer(): Promise<StartedServer> {
         .where(eq(companies.id, agent.companyId))
         .limit(1);
       if (!company) return null;
-      const companySlug = (company.name as string)
-        .toLowerCase()
-        .replace(/[^a-z0-9-]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 32) || "company";
-      const imageRegistry = connection.imageRegistry?.replace(/\/+$/, "") ?? "ghcr.io/paperclipai";
-      const defaultImage = `${imageRegistry}/agent-runtime-claude:v1`;
-      return {
-        companySlug,
-        image: connection.allowAgentImageOverride && target.imageOverride ? target.imageOverride : defaultImage,
-        initImage: `${imageRegistry}/agent-runtime-base:v1`,
-        paperclipPublicUrl: connection.paperclipPublicUrl ?? process.env.PAPERCLIP_API_URL ?? "",
-        workspaceStrategyJson: buildAdapterManagedWorkspaceRequestJson(),
-        workspaceStrategyKey: "ephemeral",
-      };
+      return buildKubernetesRunContext({
+        companyName: company.name as string,
+        target,
+        connection,
+      });
     },
   });
 
