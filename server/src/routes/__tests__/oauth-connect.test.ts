@@ -4,7 +4,10 @@ import request from "supertest";
 import { oauthRoutes } from "../oauth.js";
 import { ProviderRegistry } from "../../oauth/registry.js";
 
-function setup() {
+function setup(opts: {
+  rateLimiter?: { check: ReturnType<typeof vi.fn> };
+  connectFloodLimiter?: { check: ReturnType<typeof vi.fn> };
+} = {}) {
   const insertMock = vi.fn().mockResolvedValue([{ id: "state-uuid-123" }]);
   const db = {
     insert: () => ({ values: () => ({ returning: insertMock }) }),
@@ -43,13 +46,14 @@ function setup() {
       };
       next();
     },
-    oauthRoutes({
-      registry,
-      db: db as unknown as never,
-      publicUrl: "https://app.paperclip.test",
-      rateLimiter: { check: async () => true },
-      secretService: {},
-    }),
+      oauthRoutes({
+        registry,
+        db: db as unknown as never,
+        publicUrl: "https://app.paperclip.test",
+        rateLimiter: opts.rateLimiter ?? { check: vi.fn(async () => true) },
+        connectFloodLimiter: opts.connectFloodLimiter,
+        secretService: {},
+      }),
   );
   return { app, insertMock };
 }
@@ -80,6 +84,19 @@ describe("POST /connect/:providerId", () => {
       .send({ scopes: ["admin:everything"] });
     expect(res.status).toBe(400);
     expect(res.body.errorCode).toBe("invalid_scope");
+  });
+
+  it("checks company flood limit before consuming a per-user rate-limit slot", async () => {
+    const rateLimiter = { check: vi.fn(async () => true) };
+    const connectFloodLimiter = { check: vi.fn(async () => false) };
+    const { app } = setup({ rateLimiter, connectFloodLimiter });
+
+    const res = await request(app).post("/api/companies/c1/oauth/connect/github");
+
+    expect(res.status).toBe(429);
+    expect(res.body.errorCode).toBe("connect_flood");
+    expect(connectFloodLimiter.check).toHaveBeenCalledTimes(1);
+    expect(rateLimiter.check).not.toHaveBeenCalled();
   });
 
   it("returns 404 for unknown provider", async () => {

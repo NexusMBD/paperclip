@@ -11,6 +11,7 @@ interface MakeAppOptions {
     | { outcome: "transient"; error: string }
     | { outcome: "skipped"; reason: string };
   conn?: Record<string, unknown> | null;
+  afterRefreshConn?: Record<string, unknown> | null;
 }
 
 function makeApp(opts: MakeAppOptions = {}) {
@@ -56,7 +57,12 @@ function makeApp(opts: MakeAppOptions = {}) {
           updatedAt: new Date(),
         }
       : opts.conn;
-  const findFirst = vi.fn().mockResolvedValue(conn);
+  const findFirst = vi
+    .fn()
+    .mockResolvedValueOnce(conn)
+    .mockResolvedValue(
+      opts.afterRefreshConn === undefined ? conn : opts.afterRefreshConn,
+    );
   const db = {
     query: {
       oauthConnections: { findFirst },
@@ -138,6 +144,18 @@ describe("POST /connections/:id/refresh", () => {
     );
     expect(res.status).toBe(409);
     expect(res.body.errorCode).toBe("connection_revoked");
+  });
+
+  it("returns 404 when connection is deleted after refresh completes", async () => {
+    const { app, refreshFn } = makeApp({
+      refreshOutcome: { outcome: "success", accessToken: "x" },
+      afterRefreshConn: null,
+    });
+    const res = await request(app).post(
+      "/api/companies/c1/oauth/connections/conn/refresh",
+    );
+    expect(res.status).toBe(404);
+    expect(refreshFn).toHaveBeenCalledTimes(1);
   });
 
   it("returns 404 when connection does not belong to company", async () => {

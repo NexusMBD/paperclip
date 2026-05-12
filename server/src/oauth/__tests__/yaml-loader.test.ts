@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadProviderConfigsFromDirectory } from "../yaml-loader.js";
@@ -18,5 +20,21 @@ describe("loadProviderConfigsFromDirectory", () => {
       "/nonexistent/path/x",
     );
     expect(configs).toEqual([]);
+  });
+
+  it("reports tab indentation explicitly", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "oauth-provider-yaml-"));
+    try {
+      await writeFile(
+        path.join(dir, "bad.yaml"),
+        "id: bad\n\tclientCredentials:\n\t\tclientIdEnv: BAD_ID\n",
+        "utf8",
+      );
+      await expect(loadProviderConfigsFromDirectory(dir)).rejects.toThrow(
+        /Tab indentation is not supported/,
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

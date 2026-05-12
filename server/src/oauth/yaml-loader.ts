@@ -39,7 +39,11 @@ function parseProviderYaml(raw: string): unknown {
     if (!originalLine.trim() || originalLine.trimStart().startsWith("#")) {
       continue;
     }
-    const indent = originalLine.match(/^ */)?.[0].length ?? 0;
+    const leadingWhitespace = originalLine.match(/^\s*/)?.[0] ?? "";
+    if (leadingWhitespace.includes("\t")) {
+      throw new Error(`Tab indentation is not supported on line ${index + 1}`);
+    }
+    const indent = leadingWhitespace.length;
     if (indent % 2 !== 0) {
       throw new Error(`Invalid indentation on line ${index + 1}`);
     }
@@ -117,7 +121,7 @@ export async function loadProviderConfigsFromDirectory(
         { file: fullPath, err },
         "failed to parse OAuth provider yaml",
       );
-      throw new Error(`Invalid YAML in ${fullPath}`);
+      throw new Error(`Invalid YAML in ${fullPath}: ${(err as Error).message}`);
     }
     const result = OAuthProviderConfigSchema.safeParse(parsed);
     if (!result.success) {

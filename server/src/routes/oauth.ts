@@ -150,11 +150,6 @@ export function oauthRoutes(deps: OAuthRouteDeps): Router {
     }
 
     const actor = (req as Request & { actor: { userId: string } }).actor;
-    const ok = await deps.rateLimiter.check(`connect:${actor.userId}`);
-    if (!ok) {
-      res.status(429).json({ errorCode: "rate_limited" });
-      return;
-    }
     if (deps.connectFloodLimiter) {
       const floodOk = await deps.connectFloodLimiter.check(
         `connect-flood:${(req.params as unknown as { companyId: string }).companyId}`,
@@ -163,6 +158,11 @@ export function oauthRoutes(deps: OAuthRouteDeps): Router {
         res.status(429).json({ errorCode: "connect_flood" });
         return;
       }
+    }
+    const ok = await deps.rateLimiter.check(`connect:${actor.userId}`);
+    if (!ok) {
+      res.status(429).json({ errorCode: "rate_limited" });
+      return;
     }
 
     const { scopes, returnUrl } = (req.body ?? {}) as {
@@ -302,20 +302,24 @@ export function oauthRoutes(deps: OAuthRouteDeps): Router {
     const updated = await deps.db.query.oauthConnections.findFirst({
       where: eq(oauthConnections.id, row.id),
     });
+    if (!updated) {
+      res.status(404).end();
+      return;
+    }
     if (result.outcome === "success") {
-      res.json(publicConnection(updated));
+      res.json(publicConnection(updated, true));
       return;
     }
     if (result.outcome === "revoked") {
       res.status(409).json({
         errorCode: "connection_revoked",
-        connection: publicConnection(updated),
+        connection: publicConnection(updated, true),
       });
       return;
     }
     res.status(503).json({
       errorCode: "refresh_failed",
-      connection: publicConnection(updated),
+      connection: publicConnection(updated, true),
     });
   });
 
