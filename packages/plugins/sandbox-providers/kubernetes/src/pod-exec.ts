@@ -102,6 +102,10 @@ export async function execInPod(
           stderr: stderrData,
         });
       };
+      const endOutputStreams = () => {
+        if (!stdoutStream.writableEnded) stdoutStream.end();
+        if (!stderrStream.writableEnded) stderrStream.end();
+      };
 
       stdoutStream.on("end", () => {
         stdoutEnded = true;
@@ -126,6 +130,7 @@ export async function execInPod(
             // status.status is "Success" | "Failure"
             if (status.status === "Success") {
               pendingResult = { exitCode: 0, timedOut: false };
+              endOutputStreams();
               tryFinish();
               return;
             }
@@ -140,6 +145,7 @@ export async function execInPod(
               ? Number(exitCodeCause.message)
               : 1;
             pendingResult = { exitCode, timedOut: false };
+            endOutputStreams();
             tryFinish();
           },
         );

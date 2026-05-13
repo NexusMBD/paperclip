@@ -54,7 +54,16 @@ export class FastUploadInterceptor {
         return { action: "passthrough", reason: "init dir/target mismatch" };
       }
 
-      this.buffers.set(`${targetPath}.paperclip-upload.b64`, {
+      const tempPath = `${targetPath}.paperclip-upload.b64`;
+      if (this.buffers.has(tempPath)) {
+        this.buffers.delete(tempPath);
+        return {
+          action: "error",
+          message: `Fast upload already in progress for ${targetPath}; retry the upload from the beginning.`,
+        };
+      }
+
+      this.buffers.set(tempPath, {
         targetPath,
         chunks: [],
         totalBase64Chars: 0,

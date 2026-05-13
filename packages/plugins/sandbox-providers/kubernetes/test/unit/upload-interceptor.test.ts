@@ -75,6 +75,25 @@ describe("FastUploadInterceptor", () => {
     expect(interceptor.pendingCount).toBe(0);
   });
 
+  it("fails fast when init repeats for an in-progress upload", () => {
+    const interceptor = new FastUploadInterceptor();
+    const target = "/workspace/file.bin";
+    const initCommand =
+      `mkdir -p '/workspace' && rm -f '${target}.paperclip-upload.b64' && : > '${target}.paperclip-upload.b64'`;
+
+    expect(interceptor.decide(initCommand)).toMatchObject({ action: "ack" });
+    expect(
+      interceptor.decide(`printf '%s' 'aGVsbG8=' >> '${target}.paperclip-upload.b64'`),
+    ).toMatchObject({ action: "ack" });
+
+    const decision = interceptor.decide(initCommand);
+    expect(decision).toMatchObject({
+      action: "error",
+      message: expect.stringContaining("Fast upload already in progress"),
+    });
+    expect(interceptor.pendingCount).toBe(0);
+  });
+
   it("clears buffered uploads on reset", () => {
     const interceptor = new FastUploadInterceptor();
     const target = "/workspace/file.bin";
