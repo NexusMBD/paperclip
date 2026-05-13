@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import plugin, {
   buildSandboxExecCommand,
   buildSandboxExecShellCommand,
+  deriveUploadTargetDir,
   extractAdapterEnvFromProcess,
 } from "../../src/plugin.js";
 
@@ -178,5 +179,11 @@ describe("plugin", () => {
         command: "pnpm test -- --runInBand",
       }),
     ).toEqual(["/bin/sh", "-lc", "pnpm test -- --runInBand"]);
+  });
+
+  it("derives upload target directories for root and nested paths", () => {
+    expect(deriveUploadTargetDir("/file")).toBe("/");
+    expect(deriveUploadTargetDir("/workspace/file")).toBe("/workspace");
+    expect(deriveUploadTargetDir("relative-file")).toBe(".");
   });
 });

@@ -132,6 +132,11 @@ export function buildSandboxExecCommand(
   return ["/bin/sh", "-l"];
 }
 
+export function deriveUploadTargetDir(targetPath: string): string {
+  const slashIndex = targetPath.lastIndexOf("/");
+  return slashIndex >= 0 ? targetPath.slice(0, slashIndex) || "/" : ".";
+}
+
 export function buildSandboxExecShellCommand(
   params: Pick<PluginEnvironmentExecuteParams, "args" | "command">,
 ): string {
@@ -552,8 +557,7 @@ const plugin = definePlugin({
         }
         if (decision.action === "flush") {
           const base64Body = decision.flush.payload.toString("base64");
-          const slashIndex = decision.flush.targetPath.lastIndexOf("/");
-          const dir = slashIndex > 0 ? decision.flush.targetPath.slice(0, slashIndex) : ".";
+          const dir = deriveUploadTargetDir(decision.flush.targetPath);
           const script =
             `mkdir -p ${shellQuoteArg(dir)} && ` +
             `base64 -d > ${shellQuoteArg(decision.flush.targetPath)}`;

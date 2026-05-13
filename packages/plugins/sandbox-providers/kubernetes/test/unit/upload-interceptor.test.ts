@@ -62,6 +62,27 @@ describe("FastUploadInterceptor", () => {
     expect(interceptor.pendingCount).toBe(1);
   });
 
+  it("fails fast when data arrives after a padded chunk", () => {
+    const interceptor = new FastUploadInterceptor();
+    const target = "/workspace/file.bin";
+
+    expect(
+      interceptor.decide(
+        `mkdir -p '/workspace' && rm -f '${target}.paperclip-upload.b64' && : > '${target}.paperclip-upload.b64'`,
+      ),
+    ).toMatchObject({ action: "ack" });
+    expect(
+      interceptor.decide(`printf '%s' 'aGVs=' >> '${target}.paperclip-upload.b64'`),
+    ).toMatchObject({ action: "ack" });
+
+    const decision = interceptor.decide(`printf '%s' 'bG8=' >> '${target}.paperclip-upload.b64'`);
+    expect(decision).toMatchObject({
+      action: "error",
+      message: expect.stringContaining("received data after a padded chunk"),
+    });
+    expect(interceptor.pendingCount).toBe(0);
+  });
+
   it("falls through when the init command does not match the target parent directory", () => {
     const interceptor = new FastUploadInterceptor();
 

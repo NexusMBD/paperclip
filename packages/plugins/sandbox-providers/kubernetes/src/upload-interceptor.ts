@@ -38,6 +38,7 @@ interface BufferedUpload {
   targetPath: string;
   chunks: string[];
   totalBase64Chars: number;
+  sawPaddedChunk: boolean;
 }
 
 export class FastUploadInterceptor {
@@ -67,6 +68,7 @@ export class FastUploadInterceptor {
         targetPath,
         chunks: [],
         totalBase64Chars: 0,
+        sawPaddedChunk: false,
       });
       return { action: "ack", reason: `init upload to ${targetPath}` };
     }
@@ -80,6 +82,13 @@ export class FastUploadInterceptor {
       if (!upload) {
         return { action: "passthrough", reason: "chunk without prior init" };
       }
+      if (upload.sawPaddedChunk) {
+        this.buffers.delete(tempPath);
+        return {
+          action: "error",
+          message: `Fast upload received data after a padded chunk for ${upload.targetPath}; retry the upload from the beginning.`,
+        };
+      }
 
       if (upload.totalBase64Chars + base64Chunk.length > (this.maxBufferBytes * 4) / 3) {
         this.buffers.delete(tempPath);
@@ -91,6 +100,7 @@ export class FastUploadInterceptor {
 
       upload.chunks.push(base64Chunk);
       upload.totalBase64Chars += base64Chunk.length;
+      upload.sawPaddedChunk = base64Chunk.endsWith("=");
       return { action: "ack", reason: `buffered ${base64Chunk.length} base64 chars` };
     }
 
