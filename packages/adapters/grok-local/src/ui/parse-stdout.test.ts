@@ -6,10 +6,10 @@ describe("parseGrokStdoutLine", () => {
 
   it("maps thought/text/end events into transcript entries", () => {
     expect(parseGrokStdoutLine(JSON.stringify({ type: "thought", data: "Plan first." }), ts)).toEqual([
-      { kind: "thinking", ts, text: "Plan first." },
+      { kind: "thinking", ts, text: "Plan first.", delta: true },
     ]);
     expect(parseGrokStdoutLine(JSON.stringify({ type: "text", data: "hello" }), ts)).toEqual([
-      { kind: "assistant", ts, text: "hello" },
+      { kind: "assistant", ts, text: "hello", delta: true },
     ]);
     expect(parseGrokStdoutLine(JSON.stringify({ type: "end", stopReason: "EndTurn", sessionId: "sess-1" }), ts)).toEqual([
       { kind: "system", ts, text: "stop_reason=EndTurn session=sess-1" },

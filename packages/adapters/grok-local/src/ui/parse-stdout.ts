@@ -26,13 +26,13 @@ export function parseGrokStdoutLine(line: string, ts: string): TranscriptEntry[]
   const type = asString(parsed.type).trim();
 
   if (type === "thought") {
-    const text = asString(parsed.data).trim();
-    return text ? [{ kind: "thinking", ts, text }] : [];
+    const text = asString(parsed.data);
+    return text ? [{ kind: "thinking", ts, text, delta: true }] : [];
   }
 
   if (type === "text") {
     const text = asString(parsed.data);
-    return text ? [{ kind: "assistant", ts, text }] : [];
+    return text ? [{ kind: "assistant", ts, text, delta: true }] : [];
   }
 
   if (type === "error") {
