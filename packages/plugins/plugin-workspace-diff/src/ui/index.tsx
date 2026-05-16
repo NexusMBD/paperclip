@@ -189,10 +189,39 @@ function LoadingState() {
   );
 }
 
-function ErrorState({ message }: { message: string }) {
+export function ErrorState({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
   return (
-    <div className="border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-      {message}
+    <div className="border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm" role="alert">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="font-medium text-foreground">Unable to load workspace changes.</div>
+          <div className="mt-1 text-muted-foreground">
+            Retry the request or open the details below for the technical error.
+          </div>
+        </div>
+        <button
+          type="button"
+          className={buttonClass(false)}
+          onClick={onRetry}
+          aria-label="Retry loading workspace changes"
+        >
+          Retry
+        </button>
+      </div>
+      <details className="mt-3">
+        <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
+          Troubleshooting details
+        </summary>
+        <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
+          {message || "No error message was provided."}
+        </pre>
+      </details>
     </div>
   );
 }
@@ -445,7 +474,7 @@ export function ChangesTab({ context }: PluginDetailTabProps) {
       {loading ? (
         <LoadingState />
       ) : error ? (
-        <ErrorState message={error.message} />
+        <ErrorState message={error.message} onRetry={refresh} />
       ) : files.length === 0 ? (
         <EmptyState />
       ) : (
