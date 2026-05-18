@@ -460,6 +460,41 @@ describe("agent issue mutation checkout ownership", () => {
     expect(mockIssueService.addComment).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["in_progress", (app: express.Express) => request(app).post(`/api/issues/${issueId}/comments`).send({ body: "ESCALATION" })],
+    ["blocked", (app: express.Express) => request(app).post(`/api/issues/${issueId}/comments`).send({ body: "ESCALATION" })],
+    ["todo", (app: express.Express) => request(app).post(`/api/issues/${issueId}/comments`).send({ body: "ESCALATION" })],
+  ])("allows agents with cross_issue_comment grant to comment on %s issues owned by another agent", async (status, sendRequest) => {
+    mockIssueService.getById.mockResolvedValue(makeIssue({ status: status as "in_progress" | "blocked" | "todo" }));
+    mockAccessService.hasPermission.mockImplementation(async (
+      _companyId: string,
+      _principalType: string,
+      principalId: string,
+      permissionKey: string,
+    ) => principalId === peerAgentId && permissionKey === "tasks:cross_issue_comment");
+
+    const res = await sendRequest(await createApp(peerActor()));
+
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(mockIssueService.addComment).toHaveBeenCalled();
+  });
+
+  it("does not allow cross_issue_comment grant to mutate (patch) another agent's issue", async () => {
+    mockIssueService.getById.mockResolvedValue(makeIssue({ status: "blocked", assigneeAgentId: ownerAgentId }));
+    mockAccessService.hasPermission.mockImplementation(async (
+      _companyId: string,
+      _principalType: string,
+      principalId: string,
+      permissionKey: string,
+    ) => principalId === peerAgentId && permissionKey === "tasks:cross_issue_comment");
+
+    const res = await request(await createApp(peerActor())).patch(`/api/issues/${issueId}`).send({ title: "Blocked update" });
+
+    expect(res.status, JSON.stringify(res.body)).toBe(403);
+    expect(res.body.error).toBe("Agent cannot mutate another agent's issue");
+    expect(mockIssueService.update).not.toHaveBeenCalled();
+  });
+
   it("allows same-company agent mutations on unassigned in-progress issues", async () => {
     mockIssueService.getById.mockResolvedValue(makeIssue({ assigneeAgentId: null }));
     mockIssueService.update.mockImplementation(async (_id: string, patch: Record<string, unknown>) => ({

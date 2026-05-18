@@ -4469,7 +4469,11 @@ export function issueRoutes(
       return;
     }
     assertCompanyAccess(req, issue.companyId);
-    if (!(await assertAgentIssueMutationAllowed(req, res, issue))) return;
+    const hasCrossIssueCommentGrant =
+      req.actor.type === "agent" && req.actor.agentId
+        ? await access.hasPermission(issue.companyId, "agent", req.actor.agentId, "tasks:cross_issue_comment")
+        : false;
+    if (!hasCrossIssueCommentGrant && !(await assertAgentIssueMutationAllowed(req, res, issue))) return;
     if (!assertStructuredCommentFieldsAllowed(req, res, {
       presentation: req.body.presentation,
       metadata: req.body.metadata,
