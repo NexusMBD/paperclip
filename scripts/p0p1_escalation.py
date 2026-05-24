@@ -1,0 +1,189 @@
+"""
+P0/P1 Escalation pinger — posts a comment on blocked issues instead of creating new issues.
+
+Thresholds:
+  P0 (critical): blocked > 30 minutes → @CEO
+  P1 (high):     blocked > 4 hours    → @PM @CTO
+
+Suppression (skip if any of the following):
+  - ESCALATION comment posted on this issue within the last 30 minutes
+  - All direct blockers are in_review AND have pending request_confirmation/suggest_tasks interactions
+  - CEO has commented on this issue within the last 24 hours (covered-hold)
+"""
+import json, os, sys, time, urllib.request, urllib.error
+from datetime import datetime, timezone
+
+API     = os.environ.get("PAPERCLIP_API_URL", "http://localhost:3100")
+TOKEN   = os.environ["PAPERCLIP_TOKEN"]
+COMPANY = os.environ.get("PAPERCLIP_COMPANY_ID", "f7949f00-0ccb-407a-a440-8955b29c06ca")
+
+CEO = "b30408d8-6a35-4677-a85b-8c23a0a46d14"
+CTO = "6ce3717b-412c-4ab7-a546-598206864622"
+PM  = "b3bd2d64-113e-4ad9-bcc2-2dc05a288851"
+
+P0_THRESHOLD_S  = 30 * 60        # 30 minutes
+P1_THRESHOLD_S  = 4  * 60 * 60   # 4 hours
+DEDUP_WINDOW_S  = 30 * 60        # 30 minutes — skip if ESCALATION comment posted within this window
+CEO_HOLD_S      = 24 * 60 * 60   # 24 hours — CEO comment = covered-hold
+
+HEADERS = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
+
+
+def req(method, path, body=None):
+    data = json.dumps(body).encode() if body else None
+    r = urllib.request.Request(f"{API}{path}", data=data, headers=HEADERS, method=method)
+    with urllib.request.urlopen(r) as resp:
+        return json.loads(resp.read())
+
+
+def get_blocked_issues():
+    """Fetch all blocked critical/high issues company-wide."""
+    results = []
+    for priority in ("critical", "high"):
+        page = req("GET", f"/api/companies/{COMPANY}/issues?status=blocked&priority={priority}&limit=100")
+        results.extend(page if isinstance(page, list) else page.get("issues", page.get("data", [])))
+    return results
+
+
+def now_ts():
+    return datetime.now(timezone.utc).timestamp()
+
+
+def parse_ts(s):
+    if not s:
+        return 0.0
+    for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"):
+        try:
+            return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc).timestamp()
+        except ValueError:
+            pass
+    return 0.0
+
+
+def get_comments(issue_id):
+    try:
+        return req("GET", f"/api/issues/{issue_id}/comments?order=desc&limit=50")
+    except Exception:
+        return []
+
+
+def get_blockers(issue_id):
+    try:
+        issue = req("GET", f"/api/issues/{issue_id}")
+        return issue.get("blockedBy", [])
+    except Exception:
+        return []
+
+
+def get_interactions(issue_id):
+    try:
+        return req("GET", f"/api/issues/{issue_id}/interactions")
+    except Exception:
+        return []
+
+
+def should_suppress(issue, comments):
+    now = now_ts()
+
+    # 1. Recent ESCALATION comment (dedup)
+    for c in (comments if isinstance(comments, list) else []):
+        body = c.get("body", "")
+        created = parse_ts(c.get("createdAt"))
+        if "ESCALATION" in body and now - created < DEDUP_WINDOW_S:
+            return "recent-escalation-comment"
+
+    # 2. CEO covered-hold: CEO commented in last 24 h
+    for c in (comments if isinstance(comments, list) else []):
+        if c.get("authorAgentId") == CEO and now - parse_ts(c.get("createdAt")) < CEO_HOLD_S:
+            return "ceo-hold"
+
+    # 3. All direct blockers are in_review with pending interactions
+    blockers = get_blockers(issue["id"])
+    if blockers:
+        all_covered = True
+        for bl in blockers:
+            if bl.get("status") != "in_review":
+                all_covered = False
+                break
+            interactions = get_interactions(bl["id"])
+            pending = [i for i in (interactions if isinstance(interactions, list) else [])
+                       if i.get("status") == "pending" and i.get("kind") in ("request_confirmation", "suggest_tasks")]
+            if not pending:
+                all_covered = False
+                break
+        if all_covered:
+            return "blocker-in-review-pending-interaction"
+
+    return None
+
+
+def build_comment(issue, priority, blocked_for_s):
+    hrs = blocked_for_s / 3600
+    mins = blocked_for_s / 60
+    duration = f"{hrs:.1f}h" if hrs >= 1 else f"{int(mins)}m"
+
+    ident = issue.get("identifier", issue["id"])
+    title = issue.get("title", "")
+
+    if priority == "critical":
+        mention = f"[@CEO](agent://{CEO})"
+        level = "P0"
+        note = "Immediate attention required."
+    else:
+        mention = f"[@PM](agent://{PM}) [@CTO](agent://{CTO})"
+        level = "P1"
+        note = "Please triage and unblock."
+
+    lines = [
+        f"⚠️ **ESCALATION [{level}]** — {mention}",
+        "",
+        f"**[{ident}](/MBD/issues/{ident}) — {title}** has been `blocked` for **{duration}**.",
+        "",
+        note,
+        "",
+        "_Auto-generated by P0/P1 Escalation Monitor. Mark this issue done or add a CEO-hold comment to suppress future pings._",
+    ]
+    return "\n".join(lines)
+
+
+def post_comment(issue_id, body):
+    req("POST", f"/api/issues/{issue_id}/comments", {"body": body})
+
+
+def main():
+    now = now_ts()
+    issues = get_blocked_issues()
+    print(f"Found {len(issues)} blocked critical/high issues")
+
+    escalated = skipped = 0
+
+    for issue in issues:
+        priority  = issue.get("priority")  # "critical" or "high"
+        updated   = parse_ts(issue.get("updatedAt") or issue.get("statusChangedAt"))
+        blocked_s = now - updated
+        threshold = P0_THRESHOLD_S if priority == "critical" else P1_THRESHOLD_S
+
+        if blocked_s < threshold:
+            continue  # not stale enough yet
+
+        comments = get_comments(issue["id"])
+        reason = should_suppress(issue, comments)
+        if reason:
+            print(f"  SKIP {issue.get('identifier','?')} ({reason})")
+            skipped += 1
+            continue
+
+        body = build_comment(issue, priority, blocked_s)
+        try:
+            post_comment(issue["id"], body)
+            level = "P0" if priority == "critical" else "P1"
+            print(f"  ✓ ESCALATED {level} {issue.get('identifier','?')} — {issue.get('title','')[:60]} (blocked {blocked_s/3600:.1f}h)")
+            escalated += 1
+        except Exception as e:
+            print(f"  ERR {issue.get('identifier','?')}: {e}", file=sys.stderr)
+
+    print(f"\nDone: {escalated} escalated, {skipped} suppressed")
+
+
+if __name__ == "__main__":
+    main()
