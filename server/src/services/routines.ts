@@ -1653,6 +1653,7 @@ export function routineService(
           catchUpPolicy: patch.catchUpPolicy ?? locked.catchUpPolicy,
           variables: nextVariables,
           env: nextEnv,
+          executionLabelIds: patch.executionLabelIds === undefined ? (locked.executionLabelIds ?? []) : patch.executionLabelIds,
           updatedByAgentId: actor.agentId ?? null,
           updatedByUserId: actor.userId ?? null,
         };
@@ -1702,6 +1703,7 @@ export function routineService(
             catchUpPolicy: candidate.catchUpPolicy,
             variables: candidate.variables,
             env: candidate.env,
+            executionLabelIds: candidate.executionLabelIds,
             updatedByAgentId: actor.agentId ?? null,
             updatedByUserId: actor.userId ?? null,
             updatedAt: new Date(),
