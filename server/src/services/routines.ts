@@ -414,6 +414,7 @@ function routineRevisionSnapshotRoutine(routine: RoutineRow): RoutineRevisionSna
     catchUpPolicy: routine.catchUpPolicy as RoutineRevisionSnapshotV1["routine"]["catchUpPolicy"],
     variables: routine.variables ?? [],
     env: routine.env ?? null,
+    executionLabelIds: routine.executionLabelIds ?? [],
   };
 }
 
@@ -1253,6 +1254,7 @@ export function routineService(
             originRunId: createdRun.id,
             originFingerprint: dispatchFingerprint,
             billingCode: issueBillingCode,
+            labelIds: input.routine.executionLabelIds ?? [],
             executionWorkspaceId: input.executionWorkspaceId ?? null,
             executionWorkspacePreference: input.executionWorkspacePreference ?? null,
             executionWorkspaceSettings: input.executionWorkspaceSettings ?? null,
