@@ -12,6 +12,7 @@ import {
   issueInboxArchives,
   issueReadStates,
   issues,
+  labels,
   pluginManagedResources,
   plugins,
   projects,
@@ -1536,6 +1537,14 @@ export function routineService(
         sanitizeRoutineVariableInputs(input.variables),
       );
       assertRoutineVariableDefinitions(variables);
+      const executionLabelIds = input.labelIds ?? input.executionLabelIds ?? [];
+      if (executionLabelIds.length > 0) {
+        const valid = await db.select({ id: labels.id }).from(labels)
+          .where(and(eq(labels.companyId, companyId), inArray(labels.id, executionLabelIds)));
+        if (valid.length !== new Set(executionLabelIds).size) {
+          throw unprocessable("One or more executionLabelIds are invalid for this company");
+        }
+      }
       const status = normalizeDraftRoutineStatus(input.status, input.assigneeAgentId);
       const createdRoutine = await db.transaction(async (tx) => {
         const txDb = tx as unknown as Db;
@@ -1555,7 +1564,7 @@ export function routineService(
             catchUpPolicy: input.catchUpPolicy,
             variables,
             env,
-            executionLabelIds: input.labelIds ?? input.executionLabelIds ?? [],
+            executionLabelIds,
             createdByAgentId: actor.agentId ?? null,
             createdByUserId: actor.userId ?? null,
             updatedByAgentId: actor.agentId ?? null,
@@ -1609,6 +1618,14 @@ export function routineService(
       if (patch.goalId) await assertGoal(existing.companyId, patch.goalId);
       if (patch.parentIssueId) await assertParentIssue(existing.companyId, patch.parentIssueId);
       assertRoutineVariableDefinitions(nextVariables);
+      const patchedLabelIds = patch.labelIds !== undefined ? patch.labelIds : patch.executionLabelIds;
+      if (patchedLabelIds !== undefined && patchedLabelIds.length > 0) {
+        const valid = await db.select({ id: labels.id }).from(labels)
+          .where(and(eq(labels.companyId, existing.companyId), inArray(labels.id, patchedLabelIds)));
+        if (valid.length !== new Set(patchedLabelIds).size) {
+          throw unprocessable("One or more executionLabelIds are invalid for this company");
+        }
+      }
       const enabledScheduleTriggers = await db
         .select({ id: routineTriggers.id })
         .from(routineTriggers)

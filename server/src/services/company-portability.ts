@@ -1340,12 +1340,14 @@ function resolvePortableRoutineDefinition(
       concurrencyPolicy: issue.routine.concurrencyPolicy,
       catchUpPolicy: issue.routine.catchUpPolicy,
       variables: issue.routine.variables ?? null,
+      executionLabelIds: issue.routine.executionLabelIds ?? [],
       triggers: [...issue.routine.triggers],
     }
     : {
       concurrencyPolicy: null,
       catchUpPolicy: null,
       variables: null,
+      executionLabelIds: [],
       triggers: [] as CompanyPortabilityIssueRoutineTriggerManifestEntry[],
     };
 
@@ -3563,6 +3565,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
         concurrencyPolicy: routine.concurrencyPolicy !== "coalesce_if_active" ? routine.concurrencyPolicy : undefined,
         catchUpPolicy: routine.catchUpPolicy !== "skip_missed" ? routine.catchUpPolicy : undefined,
         variables: (routine.variables ?? []).length > 0 ? routine.variables : undefined,
+        executionLabelIds: (routine.executionLabelIds ?? []).length > 0 ? routine.executionLabelIds : undefined,
         triggers: routine.triggers.map((trigger) => stripEmptyValues({
           kind: trigger.kind,
           label: trigger.label ?? null,
@@ -4587,7 +4590,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
                 ? routineDefinition.catchUpPolicy as typeof ROUTINE_CATCH_UP_POLICIES[number]
                 : "skip_missed",
             variables: routineDefinition.variables ?? [],
-            executionLabelIds: [],
+            executionLabelIds: routineDefinition.executionLabelIds ?? [],
           }, {
             agentId: null,
             userId: actorUserId ?? null,
