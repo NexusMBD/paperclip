@@ -4566,6 +4566,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
             concurrencyPolicy: null,
             catchUpPolicy: null,
             variables: null,
+            executionLabelIds: [],
             triggers: [],
           };
           const createdRoutine = await routines.create(targetCompany.id, {
