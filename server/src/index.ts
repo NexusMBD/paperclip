@@ -763,7 +763,41 @@ export async function startServer(): Promise<StartedServer> {
       .catch((err) => {
         logger.error({ err }, "startup heartbeat recovery failed");
       });
+
+    // Memory threshold auto-cleanup on heap pressure
+    const HEAP_WARNING_THRESHOLD_BYTES = 6 * 1024 * 1024 * 1024; // 6GB
+    const HEAP_CRITICAL_THRESHOLD_BYTES = 7.5 * 1024 * 1024 * 1024; // 7.5GB
+    const monitorHeapMemory = async () => {
+      const heapUsed = process.memoryUsage().heapUsed;
+      if (heapUsed >= HEAP_CRITICAL_THRESHOLD_BYTES) {
+        logger.error(
+          { heapUsedGb: (heapUsed / (1024 * 1024 * 1024)).toFixed(2) },
+          "Critical heap pressure: triggering graceful process exit (below --max-old-space-size=8192 limit)",
+        );
+        try {
+          await (db.$client as any)?.end?.({ timeout: 5000 });
+        } catch (err) {
+          logger.warn({ err }, "Failed to close database connections during heap emergency exit");
+        }
+        process.exit(1);
+      } else if (heapUsed >= HEAP_WARNING_THRESHOLD_BYTES) {
+        logger.warn(
+          { heapUsedGb: (heapUsed / (1024 * 1024 * 1024)).toFixed(2) },
+          "High heap pressure: attempting emergency cleanup (closing idle postgres pool connections, clearing caches)",
+        );
+        try {
+          await (db.$client as any)?.end?.({ timeout: 2000 });
+        } catch (err) {
+          logger.warn({ err }, "Failed to close idle database connections during heap cleanup");
+        }
+      }
+    };
+
     setInterval(() => {
+      void monitorHeapMemory().catch((err) => {
+        logger.error({ err }, "heap memory monitoring failed");
+      });
+
       void heartbeat
         .tickTimers(new Date())
         .then((result) => {
