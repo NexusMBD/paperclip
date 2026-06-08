@@ -3093,7 +3093,8 @@ export function agentRoutes(
     const agentId = req.query.agentId as string | undefined;
     const limitParam = req.query.limit as string | undefined;
     const limit = limitParam ? Math.max(1, Math.min(1000, parseInt(limitParam, 10) || 200)) : 20;
-    const runs = await heartbeat.list(companyId, agentId, limit);
+    const includeResult = req.query.include === "result";
+    const runs = await heartbeat.list(companyId, agentId, limit, includeResult);
     res.json(runs);
   });
 

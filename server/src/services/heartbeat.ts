@@ -9918,22 +9918,20 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
   }
 
   return {
-    list: async (companyId: string, agentId?: string, limit?: number) => {
+    list: async (companyId: string, agentId?: string, limit?: number, includeResult?: boolean) => {
       const safeForLegacyEncoding = await hasUnsafeTextProjectionDatabase();
-      const query = db
-        .select(
-          safeForLegacyEncoding
-            ? {
-                ...heartbeatRunListColumns,
-                error: sql<string | null>`NULL`.as("error"),
-                ...heartbeatRunListContextColumns,
-              }
-            : {
-                ...heartbeatRunListColumns,
-                ...heartbeatRunListContextColumns,
-                ...heartbeatRunListResultColumns,
-              },
-        )
+      const selectObject = safeForLegacyEncoding
+        ? {
+            ...heartbeatRunListColumns,
+            error: sql<string | null>`NULL`.as("error"),
+            ...heartbeatRunListContextColumns,
+          }
+        : {
+            ...heartbeatRunListColumns,
+            ...heartbeatRunListContextColumns,
+            ...(includeResult ? heartbeatRunListResultColumns : {}),
+          };
+      const query = db.select(selectObject)
         .from(heartbeatRuns)
         .where(
           agentId
@@ -9983,7 +9981,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
             wakeSource: contextWakeSource,
             wakeTriggerDetail: contextWakeTriggerDetail,
           }),
-          resultJson: safeForLegacyEncoding
+          resultJson: safeForLegacyEncoding || !includeResult
             ? null
             : summarizeHeartbeatRunListResultJson({
                 summary: resultSummary,
