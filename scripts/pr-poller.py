@@ -10,6 +10,7 @@ Every 5 minutes (via cron):
 """
 import json
 import logging
+import os
 import subprocess
 import sys
 import urllib.error
@@ -18,7 +19,7 @@ from datetime import datetime, timezone
 
 # ── Config ────────────────────────────────────────────────────────────────────
 API     = "http://localhost:3100"
-TOKEN   = "pcp_board_5b391fab83204689721526535d3600a0e289bb9e560c834a"
+TOKEN   = os.environ["PAPERCLIP_API_KEY"]
 COMPANY = "f7949f00-0ccb-407a-a440-8955b29c06ca"
 PROJECT = "2ea13380-f87d-46c5-8d2f-da056aa5da48"
 PARENT  = "ff696646-1ae6-402b-b680-3711787fb129"   # MBD-2850
