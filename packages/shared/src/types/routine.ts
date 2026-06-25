@@ -64,7 +64,7 @@ export interface Routine {
   variables: RoutineVariable[];
   env?: RoutineEnvConfig | null;
   executionLabelIds: string[];
-  labelIds?: string[];
+  labelIds: string[];
   latestRevisionId: string | null;
   latestRevisionNumber: number;
   createdByAgentId: string | null;
