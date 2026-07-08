@@ -56,4 +56,4 @@ tests/release-smoke/test-results/
 tests/release-smoke/playwright-report/
 .superset/
 .superpowers/
-.claude/worktrees/
+.worktrees/
