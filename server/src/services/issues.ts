@@ -9,7 +9,10 @@ import {
   assets,
   companies,
   companyMemberships,
+  costEvents,
   documents,
+  feedbackVotes,
+  financeEvents,
   goals,
   heartbeatRuns,
   executionWorkspaces,
@@ -4579,6 +4582,18 @@ export function issueService(db: Db) {
           .select({ documentId: issueDocuments.documentId })
           .from(issueDocuments)
           .where(eq(issueDocuments.issueId, id));
+
+        // These tables reference issues.id without ON DELETE CASCADE, so rows
+        // here would otherwise block the delete below with a foreign key
+        // violation on any issue that has comments, cost history, etc.
+        await tx.update(issues).set({ parentId: null }).where(eq(issues.parentId, id));
+        await tx.delete(costEvents).where(eq(costEvents.issueId, id));
+        await tx.delete(issueComments).where(eq(issueComments.issueId, id));
+        await tx.delete(issueReadStates).where(eq(issueReadStates.issueId, id));
+        await tx.delete(financeEvents).where(eq(financeEvents.issueId, id));
+        await tx.delete(issueInboxArchives).where(eq(issueInboxArchives.issueId, id));
+        await tx.delete(feedbackVotes).where(eq(feedbackVotes.issueId, id));
+        await tx.delete(issueThreadInteractions).where(eq(issueThreadInteractions.issueId, id));
 
         const removedIssue = await tx
           .delete(issues)

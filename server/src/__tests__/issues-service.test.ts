@@ -6,15 +6,18 @@ import {
   activityLog,
   agents,
   companies,
+  costEvents,
   createDb,
   environments,
   executionWorkspaces,
+  feedbackVotes,
   goals,
   heartbeatRuns,
   instanceSettings,
   issueComments,
   issueInboxArchives,
   issueRelations,
+  issueThreadInteractions,
   issues,
   projectWorkspaces,
   projects,
@@ -3192,5 +3195,125 @@ describeEmbeddedPostgres("issueService.list priority filter", () => {
     await seedIssues();
     const result = await svc.list(companyId, { status: "blocked", priority: "low" });
     expect(result).toHaveLength(0);
+  });
+});
+
+describeEmbeddedPostgres("issueService.remove cascade cleanup", () => {
+  let db!: ReturnType<typeof createDb>;
+  let svc!: ReturnType<typeof issueService>;
+  let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
+
+  beforeAll(async () => {
+    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-issues-remove-");
+    db = createDb(tempDb.connectionString);
+    svc = issueService(db);
+  }, 20_000);
+
+  afterEach(async () => {
+    await db.delete(costEvents);
+    await db.delete(issueThreadInteractions);
+    await db.delete(feedbackVotes);
+    await db.delete(issueComments);
+    await db.delete(issueInboxArchives);
+    await db.delete(issues);
+    await db.delete(agents);
+    await db.delete(companies);
+  });
+
+  afterAll(async () => {
+    await tempDb?.cleanup();
+  });
+
+  it("deletes an issue that has comments and cost events instead of throwing a foreign key violation", async () => {
+    const companyId = randomUUID();
+    const agentId = randomUUID();
+    const issueId = randomUUID();
+
+    await db.insert(companies).values({
+      id: companyId,
+      name: "Paperclip",
+      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+    await db.insert(agents).values({
+      id: agentId,
+      companyId,
+      name: "Escalation Monitor",
+    });
+    await db.insert(issues).values({
+      id: issueId,
+      companyId,
+      title: "Escalation: [high] CREDENTIAL DELIVERY blocked",
+      status: "blocked",
+      priority: "high",
+    });
+
+    // Rows in tables that reference issues.id without ON DELETE CASCADE —
+    // these are exactly what caused DELETE /api/issues/:id to 500 on any
+    // issue with real history (comments, cost tracking, etc.).
+    await db.insert(issueComments).values({
+      companyId,
+      issueId,
+      authorAgentId: agentId,
+      authorType: "agent",
+      body: "Escalation Alert — P1 Blocked",
+    });
+    await db.insert(costEvents).values({
+      companyId,
+      agentId,
+      issueId,
+      provider: "anthropic",
+      model: "claude-sonnet-5",
+      costCents: 12,
+      occurredAt: new Date(),
+    });
+    await db.insert(feedbackVotes).values({
+      companyId,
+      issueId,
+      targetType: "issue",
+      targetId: issueId,
+      authorUserId: "user-1",
+      vote: "up",
+    });
+    await db.insert(issueThreadInteractions).values({
+      companyId,
+      issueId,
+      kind: "ask_user_questions",
+      payload: { questions: [] },
+    });
+
+    const removed = await svc.remove(issueId);
+
+    expect(removed?.id).toBe(issueId);
+    const remaining = await db.select().from(issues).where(eq(issues.id, issueId));
+    expect(remaining).toHaveLength(0);
+    const remainingComments = await db.select().from(issueComments).where(eq(issueComments.issueId, issueId));
+    expect(remainingComments).toHaveLength(0);
+    const remainingCostEvents = await db.select().from(costEvents).where(eq(costEvents.issueId, issueId));
+    expect(remainingCostEvents).toHaveLength(0);
+  });
+
+  it("nulls out parentId on child issues instead of blocking the delete", async () => {
+    const companyId = randomUUID();
+    const parentId = randomUUID();
+    const childId = randomUUID();
+
+    await db.insert(companies).values({
+      id: companyId,
+      name: "Paperclip",
+      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+    await db.insert(issues).values([
+      { id: parentId, companyId, title: "Parent", status: "blocked", priority: "high" },
+      { id: childId, companyId, parentId, title: "Escalation: [high] Parent", status: "blocked", priority: "high" },
+    ]);
+
+    const removed = await svc.remove(parentId);
+    expect(removed?.id).toBe(parentId);
+
+    const [child] = await db.select().from(issues).where(eq(issues.id, childId));
+    expect(child).toBeDefined();
+    expect(child.parentId).toBeNull();
   });
 });

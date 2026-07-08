@@ -3,6 +3,8 @@ import type { Db } from "@paperclipai/db";
 import {
   projects,
   projectGoals,
+  costEvents,
+  financeEvents,
   goals,
   pluginManagedResources,
   plugins,
@@ -776,15 +778,21 @@ export function projectService(db: Db) {
     },
 
     remove: (id: string) =>
-      db
-        .delete(projects)
-        .where(eq(projects.id, id))
-        .returning()
-        .then((rows) => {
-          const row = rows[0] ?? null;
-          if (!row) return null;
-          return { ...row, urlKey: deriveProjectUrlKey(row.name, row.id) };
-        }),
+      db.transaction(async (tx) => {
+        // cost_events/finance_events reference projects.id without ON DELETE
+        // CASCADE, so rows here would otherwise block the delete below with a
+        // foreign key violation on any project with cost/finance history.
+        await tx.delete(costEvents).where(eq(costEvents.projectId, id));
+        await tx.delete(financeEvents).where(eq(financeEvents.projectId, id));
+
+        const row = await tx
+          .delete(projects)
+          .where(eq(projects.id, id))
+          .returning()
+          .then((rows) => rows[0] ?? null);
+        if (!row) return null;
+        return { ...row, urlKey: deriveProjectUrlKey(row.name, row.id) };
+      }),
 
     listWorkspaces: async (projectId: string): Promise<ProjectWorkspace[]> => {
       const rows = await db
