@@ -6969,17 +6969,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
         status: readNonEmptyString(context.interactionStatus),
       },
     });
-    if (issueRef) {
-      context.paperclipIssue = {
-        id: issueRef.id,
-        identifier: issueRef.identifier,
-        title: issueRef.title,
-        description: issueRef.description,
-        workMode: issueRef.workMode,
-      };
-    } else {
-      delete context.paperclipIssue;
-    }
+    delete context.paperclipIssue;
     if (wakeCommentContext) {
       context.paperclipWakeComment = wakeCommentContext;
     } else {

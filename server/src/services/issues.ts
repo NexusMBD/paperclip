@@ -213,6 +213,7 @@ export function deriveIssueCommentRunLogAttribution(
 export interface IssueFilters {
   attention?: "blocked";
   status?: string;
+  priority?: string;
   assigneeAgentId?: string;
   participantAgentId?: string;
   assigneeUserId?: string;
@@ -2517,6 +2518,12 @@ async function blockedInboxIssueConditions(
       conditions.push(statuses.length === 1 ? eq(issues.status, statuses[0]!) : inArray(issues.status, statuses));
     }
   }
+  if (filters?.priority) {
+    const priorities = filters.priority.split(",").map((p) => p.trim()).filter(Boolean);
+    if (priorities.length > 0) {
+      conditions.push(priorities.length === 1 ? eq(issues.priority, priorities[0]!) : inArray(issues.priority, priorities));
+    }
+  }
   if (filters?.assigneeAgentId) conditions.push(eq(issues.assigneeAgentId, filters.assigneeAgentId));
   if (filters?.participantAgentId) conditions.push(participatedByAgentCondition(companyId, filters.participantAgentId));
   if (filters?.assigneeUserId) conditions.push(eq(issues.assigneeUserId, filters.assigneeUserId));
@@ -3448,6 +3455,12 @@ export function issueService(db: Db) {
         const statuses = filters.status.split(",").map((s) => s.trim());
         conditions.push(statuses.length === 1 ? eq(issues.status, statuses[0]) : inArray(issues.status, statuses));
       }
+      if (filters?.priority) {
+        const priorities = filters.priority.split(",").map((p) => p.trim()).filter(Boolean);
+        if (priorities.length > 0) {
+          conditions.push(priorities.length === 1 ? eq(issues.priority, priorities[0]!) : inArray(issues.priority, priorities));
+        }
+      }
       if (filters?.assigneeAgentId) {
         conditions.push(eq(issues.assigneeAgentId, filters.assigneeAgentId));
       }
@@ -3629,6 +3642,11 @@ export function issueService(db: Db) {
         const statuses = filters.status.split(",").map((status) => status.trim()).filter(Boolean);
         if (statuses.length === 1) conditions.push(eq(issues.status, statuses[0]!));
         else if (statuses.length > 1) conditions.push(inArray(issues.status, statuses));
+      }
+      if (filters?.priority) {
+        const priorities = filters.priority.split(",").map((p) => p.trim()).filter(Boolean);
+        if (priorities.length === 1) conditions.push(eq(issues.priority, priorities[0]!));
+        else if (priorities.length > 1) conditions.push(inArray(issues.priority, priorities));
       }
       if (filters?.assigneeAgentId) conditions.push(eq(issues.assigneeAgentId, filters.assigneeAgentId));
       if (filters?.assigneeUserId) conditions.push(eq(issues.assigneeUserId, filters.assigneeUserId));
