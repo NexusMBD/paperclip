@@ -67,3 +67,4 @@ tests/storybook-visual/playwright-report/
 .claude/worktrees/
 .worktrees/
 .herenow
+cli/paperclipai-0.3.1.tgz

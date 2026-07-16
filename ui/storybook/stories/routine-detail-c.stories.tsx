@@ -88,6 +88,7 @@ const routine: RoutineDetailType = {
   concurrencyPolicy: "coalesce_if_active",
   catchUpPolicy: "skip_missed",
   variables,
+  executionLabelIds: [],
   env: { DATABASE_URL: { type: "secret_ref", secretId: "secret-prod-db", version: "latest" } } as never,
   latestRevisionId: "rev-17",
   latestRevisionNumber: 17,
