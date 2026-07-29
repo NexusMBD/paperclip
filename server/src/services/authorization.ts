@@ -1898,6 +1898,23 @@ export function authorizationService(db: Db) {
       ) {
         return allowIssueMentionGrant(input.action);
       }
+      // Check for cross-project comment permission (for agents that need to post wake comments)
+      if (input.action === "issue:comment") {
+        const crossProjectGrant = await findGrant(companyId, "agent", actorAgentId, "issues:cross_project_comment");
+        if (crossProjectGrant) {
+          return allow({
+            action: input.action,
+            reason: "allow_explicit_grant",
+            explanation: "Allowed by explicit cross-project comment grant.",
+            grant: {
+              principalType: "agent",
+              principalId: actorAgentId,
+              permissionKey: "issues:cross_project_comment",
+              scope: crossProjectGrant.scope ?? null,
+            },
+          });
+        }
+      }
     }
     if (
       input.action === "agent_config:update" &&
