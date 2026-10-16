@@ -83,8 +83,24 @@ describe("paperclip MCP tools", () => {
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(JSON.parse(String(init.body))).toEqual({
       agentId: "22222222-2222-2222-2222-222222222222",
-      expectedStatuses: ["todo", "backlog", "blocked"],
+      expectedStatuses: ["todo", "backlog", "blocked", "in_progress"],
     });
+  });
+
+  it("allows checking out an issue in_progress status with null checkoutRunId (zombie state)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      mockJsonResponse({ id: "PAP-1135", status: "in_progress", checkoutRunId: null }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const tool = getTool("paperclipCheckoutIssue");
+    await tool.execute({
+      issueId: "PAP-1135",
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as { expectedStatuses: string[] };
+    expect(body.expectedStatuses).toContain("in_progress");
   });
 
   it("allows create issue requests to omit status so the API applies assignee defaults", async () => {

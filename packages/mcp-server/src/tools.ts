@@ -476,7 +476,7 @@ export function createToolDefinitions(client: PaperclipApiClient): ToolDefinitio
         client.requestJson("POST", `/issues/${encodeURIComponent(issueId)}/checkout`, {
           body: {
             agentId: client.resolveAgentId(agentId),
-            expectedStatuses: expectedStatuses ?? ["todo", "backlog", "blocked"],
+            expectedStatuses: expectedStatuses ?? ["todo", "backlog", "blocked", "in_progress"],
           },
         }),
     ),
